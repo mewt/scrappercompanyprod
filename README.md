@@ -13,21 +13,31 @@ This project provides a simple API that allows you to search for Indonesian comp
 ## Features
 
 - RESTful API endpoint to search for company data
-- Extracts key company information including registered name, legal entity type, business number, address, and city
+- Extracts key company information including registered name, legal entity type, business number, registered address, and city
 - Handles error cases when a company is not found
 - Standardized name matching for more flexible searching
+- Production-ready deployment with Docker and Docker Compose
+- Health check endpoint for monitoring
+- Configurable rate limiting to be respectful to the target website
+- Comprehensive logging
 
 ## Files
 
 - `app.py`: Main Flask application with the API endpoint
 - `company_client.py`: Web scraping logic for extracting company data
+- `requirements.txt`: Python dependencies
+- `Dockerfile`: Docker configuration for containerization
+- `docker-compose.yml`: Docker Compose configuration for easy deployment
+- `README.md`: This file
+- `PRODUCTION.md`: Production deployment guide
 - `.gitignore`: Specifies files and directories to ignore in git
 
-## Usage
+## Local Development
 
 To run the Flask application locally:
 
 ```bash
+pip install -r requirements.txt
 python app.py
 ```
 
@@ -37,13 +47,19 @@ Then make a GET request to:
 http://localhost:5000/company/search?name=PT.%20Buka%20Bumi%20Konstruksi
 ```
 
-## API Endpoint
+## API Endpoints
 
+### Search Company
 `GET /company/search?name={company_name}`
 
 - `name`: The name of the company to search for
 
 Returns a JSON object with company information or an error message if not found.
+
+### Health Check
+`GET /health`
+
+Returns a JSON object with service health status.
 
 ## Dependencies
 
@@ -52,23 +68,39 @@ This project uses:
 - requests: for making HTTP requests
 - BeautifulSoup: for parsing HTML content
 - time: for rate limiting
+- gunicorn: for production WSGI server
 
-## Installation
+## Production Deployment
 
-To install the required dependencies, run:
+For production deployment information, see [PRODUCTION.md](PRODUCTION.md).
+
+To run with Docker:
 
 ```bash
-pip install flask requests beautifulsoup4
+docker build -t company-scraper .
+docker run -p 5000:5000 company-scraper
 ```
 
-Or create a requirements.txt file with:
+Or with Docker Compose:
 
+```bash
+docker-compose up -d
 ```
-Flask==2.3.3
-requests==2.31.0
-beautifulsoup4==4.12.2
-```
+
+## Configuration
+
+The application can be configured using environment variables:
+
+- `FLASK_ENV`: Set to "production" for production mode (default: production)
+- `PORT`: Port number to run the service on (default: 5000)
+- `SEARCH_BASE_URL`: Base URL for search queries (default: https://companieshouse.id/search?term=)
+- `BASE_DOMAIN`: Base domain for URL resolution (default: https://companieshouse.id)
+- `RATE_LIMIT`: Time in seconds to wait between requests (default: 1)
+- `REQUEST_TIMEOUT`: Timeout in seconds for HTTP requests (default: 10)
+- `USER_AGENT`: User-Agent header for HTTP requests
 
 ## Note
 
 This project implements rate limiting to be respectful to the target website. Please use responsibly and comply with the target website's terms of service.
+
+For production deployment details, refer to [PRODUCTION.md](PRODUCTION.md).
