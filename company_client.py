@@ -25,10 +25,10 @@ HEADERS = {
 
 # Fields to extract from the detail page
 TARGET_FIELDS = [
-    "Registered name",
-    "Legal entity type",
-    "Business number",
-    "Registered address",
+    "Registered Name",
+    "Legal Entity Type",
+    "Business Number",
+    "Registered Address",
     "City"
 ]
 
@@ -62,22 +62,22 @@ def scrape_detail_page(detail_url):
 
         for field_name in TARGET_FIELDS:
 
-            # 1. Find the <h3> tag that holds the label text
-            label_h3 = soup.find('h3', string=field_name)
+            # 1. Find the <dt> tag that holds the label text (updated HTML structure)
+            label_dt = soup.find('dt', string=field_name)
 
-            if label_h3:
-                # 2. Get the immediate parent div of the <h3> (the label container)
-                label_parent_div = label_h3.parent
-
-                # 3. Find the value div by looking for the next sibling of the label container
-                value_container = label_parent_div.find_next_sibling('div')
-
-                if value_container:
-                    # Get the clean text from the value container
-                    value = value_container.get_text(strip=True)
-                    extracted_data[field_name] = value
+            if label_dt:
+                # 2. Find the parent div and then find the <dd> within the same grid container
+                parent_div = label_dt.find_parent('div', class_=lambda x: x and 'grid' in x)
+                if parent_div:
+                    value_dd = parent_div.find('dd')
+                    if value_dd:
+                        # Get the clean text from the value container
+                        value = value_dd.get_text(strip=True)
+                        extracted_data[field_name] = value
+                    else:
+                        extracted_data[field_name] = f"Value dd not found for {field_name}"
                 else:
-                    extracted_data[field_name] = f"Value container not found using sibling traversal for {field_name}"
+                    extracted_data[field_name] = f"Parent container not found for {field_name}"
             else:
                 extracted_data[field_name] = f"Label not found for {field_name}"
 
@@ -116,10 +116,15 @@ def extract_company_data(company_name):
         response.raise_for_status()
         search_soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Target the <a> tag by comparing the standardized input name to the standardized link text
-        target_link = search_soup.find('a',
-            string=lambda t: t and standardized_input_name == standardize_name(t)
-        )
+        # Target the <a> tag by comparing the standardized input name to the standardized title attribute
+        # The title attribute contains the exact company name (updated for new HTML structure)
+        all_links = search_soup.find_all('a', href=True)
+        target_link = None
+        for link in all_links:
+            title = link.get('title', '')
+            if title and standardized_input_name == standardize_name(title):
+                target_link = link
+                break
 
         if not target_link:
             logger.warning(f"Company '{company_name}' not found as a standardized match in the search results.")
