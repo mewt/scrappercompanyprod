@@ -1,7 +1,7 @@
 import os
 import logging
 from flask import Flask, jsonify, request
-from company_client import extract_company_data  # Import the scraper function
+from company_client import extract_company_data, check_company_exists  # Import the scraper functions
 
 # Configure logging
 logging.basicConfig(
@@ -19,6 +19,48 @@ def health_check():
     Health check endpoint for monitoring
     """
     return jsonify({"status": "healthy"}), 200
+
+# Check company exists endpoint (lightweight)
+@app.route('/company/check', methods=['GET'])
+def check_company():
+    """
+    Lightweight endpoint to check if a company exists.
+    Only performs search, does NOT scrape detail page.
+    Much faster than /company/search (2-5 seconds vs 30+ seconds).
+    
+    Usage: GET /company/check?name=PT.%20Buka%20Bumi%20Konstruksi
+    
+    Returns:
+        200: {"exists": true, "name": "...", "url": "..."} - Company found
+        404: {"exists": false} - Company not found
+        400: {"error": "Missing 'name' parameter"} - Invalid request
+    """
+    logger.info("Received company check request")
+    
+    # Get the company name dynamically from the URL query string
+    company_name = request.args.get('name')
+    
+    # Validate input
+    if not company_name:
+        error_msg = "Missing 'name' parameter in the request."
+        logger.warning(error_msg)
+        return jsonify({"error": error_msg}), 400
+    
+    # Call the check function (lightweight, no detail scraping)
+    try:
+        result = check_company_exists(company_name)
+    except Exception as e:
+        logger.error(f"Error checking company existence for '{company_name}': {str(e)}")
+        return jsonify({"error": f"Internal error occurred while checking '{company_name}'"}), 500
+    
+    # Handle response
+    if result is None:
+        logger.info(f"Company '{company_name}' not found")
+        return jsonify({"exists": False}), 404
+        
+    logger.info(f"Company '{company_name}' found")
+    # Return success with company info
+    return jsonify(result), 200
 
 # Define the API endpoint
 @app.route('/company/search', methods=['GET'])

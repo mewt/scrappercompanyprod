@@ -43,6 +43,8 @@ python app.py
 
 ### 1. Health Check
 
+Check if the API service is running and healthy.
+
 ```http
 GET /health
 ```
@@ -56,7 +58,63 @@ GET /health
 }
 ```
 
-### 2. Search Company
+**Use Case:** 
+- Docker health checks
+- Load balancer health probes
+- Uptime monitoring
+
+---
+
+### 2. Check Company Exists (Lightweight)
+
+Quick check to verify if a company exists **without** scraping full details. Much faster than `/company/search` (2-5 seconds vs 30+ seconds).
+
+```http
+GET /company/check?name={company_name}
+```
+
+**Parameters:**
+- `name` (required): Company name to check (URL-encoded)
+
+**Example Request:**
+```bash
+curl "http://localhost:5000/company/check?name=PT.%20Buka%20Bumi%20Konstruksi"
+```
+
+**Success Response (200):**
+```json
+{
+  "exists": true,
+  "name": "PT. Buka Bumi Konstruksi",
+  "url": "https://companieshouse.id/buka-bumi-konstruksi"
+}
+```
+
+**Not Found Response (404):**
+```json
+{
+  "exists": false
+}
+```
+
+**Error Response (400):**
+```json
+{
+  "error": "Missing 'name' parameter"
+}
+```
+
+**Use Case:** 
+- Pre-validation before full extraction
+- CRM workflows (check before adding to database)
+- Quick availability checks
+- Save time by avoiding full extraction for non-existent companies
+
+---
+
+### 3. Search Company (Full Extraction)
+
+Full company search with complete data extraction from the detail page.
 
 ```http
 GET /company/search?name={company_name}
@@ -81,14 +139,94 @@ curl "http://localhost:5000/company/search?name=PT.%20Buka%20Bumi%20Konstruksi"
 }
 ```
 
+**Use Case:** When you need complete company details for your CRM or database
+
+---
+
 ## Error Responses
 
-| Status Code | Description | Example Response |
-|------------|-------------|------------------|
-| 200 | Success | Company data JSON |
-| 400 | Missing parameter | `{"error": "Missing 'name' parameter"}` |
-| 503 | Company not found | `{"error": "Could not find information for 'Company'"}` |
-| 500 | Server error | `{"error": "Internal error occurred..."}` |
+| Status Code | Endpoint | Description | Example Response |
+|------------|----------|-------------|------------------|
+| 200 | All | Success | Varies by endpoint |
+| 400 | `/company/check`, `/company/search` | Missing parameter | `{"error": "Missing 'name' parameter"}` |
+| 404 | `/company/check` | Company not found | `{"exists": false}` |
+| 503 | `/company/search` | Company not found or extraction failed | `{"error": "Could not find information for 'Company'"}` |
+| 500 | All | Internal server error | `{"error": "Internal error occurred..."}` |
+
+## Response Fields
+
+### Company Check Response
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| exists | Whether company was found | `true` or `false` |
+| name | Official company name | "PT. Buka Bumi Konstruksi" |
+| url | Detail page URL | "https://companieshouse.id/buka-bumi-konstruksi" |
+
+### Company Search Response
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Registered Name | Official company name | "PT. Buka Bumi Konstruksi" |
+| Legal Entity Type | Company type | "Limited Liability Company" |
+| Business Number | Registration number (NIB) | "1218057" |
+| Registered Address | Official address | "Gold Coast Office Tower..." |
+| City | Registration city | "NORTH JAKARTA" |
+
+## Workflow Example
+
+### For CRM Integration (Pipedream, Zapier, n8n, etc.)
+
+```javascript
+// Step 1: Check if company exists (fast - 2-5 seconds)
+const checkResponse = await $http({
+  url: "http://your-api-server:5000/company/check",
+  params: { name: "PT Example Company" }
+});
+
+// Step 2: Only extract full data if company exists
+if (checkResponse.status === 200 && checkResponse.data.exists) {
+  // Company exists, get full details (30-60 seconds)
+  const fullData = await $http({
+    url: "http://your-api-server:5000/company/search",
+    params: { name: "PT Example Company" }
+  });
+  
+  // Add to your CRM
+  await saveToCRM(fullData.data);
+  console.log("Company added to CRM:", fullData.data["Registered Name"]);
+} else {
+  // Skip - company not found
+  console.log("Company not found, skipping CRM update...");
+}
+```
+
+**Benefits:**
+- Saves time by avoiding full extraction for non-existent companies
+- Reduces load on the source website
+- Faster workflow execution
+- Lower API costs if you're paying for compute time
+
+### Python Example
+
+```python
+import requests
+
+# Check if company exists
+response = requests.get("http://localhost:5000/company/check", 
+                       params={"name": "PT Buka Bumi Konstruksi"})
+
+if response.status_code == 200:
+    data = response.json()
+    if data["exists"]:
+        # Get full details
+        full_response = requests.get("http://localhost:5000/company/search",
+                                    params={"name": "PT Buka Bumi Konstruksi"})
+        company_data = full_response.json()
+        print(f"Found: {company_data['Registered Name']}")
+else:
+    print("Company not found")
+```
 
 ## Configuration
 
@@ -113,21 +251,20 @@ REQUEST_TIMEOUT=10
 FLASK_ENV=production
 ```
 
-## Response Fields
+## Performance Comparison
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| Registered Name | Official company name | "PT. Buka Bumi Konstruksi" |
-| Legal Entity Type | Company type | "Limited Liability Company" |
-| Business Number | Registration number (NIB) | "1218057" |
-| Registered Address | Official address | "Gold Coast Office Tower..." |
-| City | Registration city | "NORTH JAKARTA" |
+| Endpoint | Average Response Time | Use Case |
+|----------|---------------------|----------|
+| `/health` | < 100ms | Monitoring |
+| `/company/check` | 2-5 seconds | Existence verification |
+| `/company/search` | 30-60 seconds | Full data extraction |
 
 ## Features
 
 ### Production Features
 
-- **Health Check Endpoint**: `/health` for monitoring
+- **Health Check Endpoint**: `/health` for monitoring and Docker health checks
+- **Lightweight Check Endpoint**: `/company/check` for fast existence verification
 - **Structured Logging**: Comprehensive request/response logging
 - **Environment Configuration**: All settings via env vars
 - **Docker Support**: Complete containerization
