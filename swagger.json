@@ -1,0 +1,191 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Company Scraper API - Production",
+    "description": "A production-ready Flask-based API that scrapes Indonesian company information from companieshouse.id with Docker support, logging, and health monitoring.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local development server"
+    },
+    {
+      "url": "http://companycheck.wearefum.web.id",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check endpoint",
+        "description": "Returns the health status of the API service for monitoring and load balancers",
+        "operationId": "healthCheck",
+        "tags": ["Health"],
+        "responses": {
+          "200": {
+            "description": "Service is healthy and operational",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                },
+                "example": {
+                  "status": "healthy"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/company/search": {
+      "get": {
+        "summary": "Search for company information",
+        "description": "Searches for Indonesian company data by name using web scraping from companieshouse.id. Implements rate limiting and comprehensive error handling.",
+        "operationId": "searchCompany",
+        "tags": ["Company"],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "description": "The company name to search for (URL-encoded). Supports flexible matching with standardized name comparison.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "PT. Buka Bumi Konstruksi"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Company data successfully retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyData"
+                },
+                "example": {
+                  "Registered Name": "PT. Buka Bumi Konstruksi",
+                  "Legal Entity Type": "Limited Liability Company",
+                  "Business Number": "1218057",
+                  "Registered Address": "Gold Coast Office Tower Liberty Lantai 3 GH, Jalan Pantai Indah Kapuk",
+                  "City": "NORTH JAKARTA"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing required parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Missing 'name' parameter in the request."
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Company not found or extraction failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Could not find or extract information for 'PT. Unknown Company'. Please verify the company name."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": "Internal error occurred while processing request for 'Company Name'."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Health status of the service",
+            "enum": ["healthy"],
+            "example": "healthy"
+          }
+        },
+        "required": ["status"]
+      },
+      "CompanyData": {
+        "type": "object",
+        "properties": {
+          "Registered Name": {
+            "type": "string",
+            "description": "The official registered name of the company",
+            "example": "PT. Buka Bumi Konstruksi"
+          },
+          "Legal Entity Type": {
+            "type": "string",
+            "description": "The type of legal entity (e.g., Limited Liability Company, Perseroan Terbatas)",
+            "example": "Limited Liability Company"
+          },
+          "Business Number": {
+            "type": "string",
+            "description": "The unique business registration number (NIB)",
+            "example": "1218057"
+          },
+          "Registered Address": {
+            "type": "string",
+            "description": "The official registered address of the company",
+            "example": "Gold Coast Office Tower Liberty Lantai 3 GH, Jalan Pantai Indah Kapuk"
+          },
+          "City": {
+            "type": "string",
+            "description": "The city where the company is registered",
+            "example": "NORTH JAKARTA"
+          }
+        },
+        "required": ["Registered Name", "Legal Entity Type", "Business Number", "Registered Address", "City"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong"
+          }
+        },
+        "required": ["error"]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Health check and monitoring endpoints"
+    },
+    {
+      "name": "Company",
+      "description": "Company information search and retrieval"
+    }
+  ]
+}
